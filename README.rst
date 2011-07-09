@@ -5,7 +5,7 @@ gola: A script launcher written in Go
 Install
 -------
 
-* Go r57.1 -> http://golang.org/doc/install.html
+* Go r58 -> http://golang.org/doc/install.html
 * gola::
 
     $ git clone https://github.com/hattya/gola.git

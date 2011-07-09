@@ -191,16 +191,21 @@ func (g *gola) exec(args []string) int {
 	for _, v := range args {
 		argv = append(argv, v)
 	}
-	cmd, err := exec.Run(argv[0], argv, os.Environ(), "", exec.PassThrough,
-		exec.PassThrough, exec.PassThrough)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	if err != nil {
+		if msg, ok := err.(*os.Waitmsg); ok {
+			if !msg.Exited() {
+				log.Fatal(msg)
+			}
+			return msg.ExitStatus()
+		}
 		log.Fatal(err)
 	}
-	waitmsg, err := cmd.Wait(0)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return waitmsg.ExitStatus()
+	return 0
 }
 
 func (g *gola) loadScript() (kwd string, argv []string) {
