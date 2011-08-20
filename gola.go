@@ -258,7 +258,7 @@ func (g *gola) parseShebang() (argv []string) {
 	}
 	shebang = strings.Replace(shebang, "\\", "/", -1)
 	// parse shebang
-	p := strings.Split(strings.TrimSpace(shebang[2:]), " ", -1)
+	p := strings.Split(strings.TrimSpace(shebang[2:]), " ")
 	for _, s := range p {
 		if len(argv) == 1 &&
 			filepath.IsAbs(argv[0]) &&
