@@ -5,12 +5,10 @@ gola: A script launcher written in Go
 Install
 -------
 
-* Go r60 -> http://golang.org/doc/install.html
+* Go version 1 -> http://golang.org/
 * gola::
 
-    $ git clone https://github.com/hattya/gola.git
-    $ cd gola
-    $ make
+    $ go get -u github.com/hattya/gola
 
 Usgae
 -----

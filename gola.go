@@ -1,7 +1,7 @@
 //
 // gola.go - A script launcher written in Go
 //
-//   Copyright (c) 2011 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2011-2012 Akinori Hattori <hattya@gmail.com>
 //
 //   Permission is hereby granted, free of charge, to any person
 //   obtaining a copy of this software and associated documentation files
@@ -29,14 +29,15 @@ package main
 import (
 	"archive/zip"
 	"bufio"
-	"exec"
+	"encoding/json"
 	"io/ioutil"
-	"json"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 func main() {
@@ -49,10 +50,12 @@ func main() {
 }
 
 type gola struct {
-	dir  []string
-	map_ map[string]map[string]string
-	name string
-	ext  string
+	name   string
+	ext    string
+	config struct {
+		Dir []string
+		Map map[string]map[string]string
+	}
 }
 
 func newGola(argv0, name string) *gola {
@@ -63,7 +66,7 @@ func newGola(argv0, name string) *gola {
 	// redirect to a found file
 	if !g.isFile(g.name) {
 		name := func() string {
-			for _, n := range g.dir {
+			for _, n := range g.config.Dir {
 				name := filepath.Join(g.name, n)
 				if g.isFile(name) {
 					return name
@@ -77,11 +80,6 @@ func newGola(argv0, name string) *gola {
 		g.name = name
 	}
 	return g
-}
-
-func (g *gola) isFile(name string) bool {
-	fi, err := os.Stat(name)
-	return err == nil && fi.IsRegular()
 }
 
 func (g *gola) loadConfig(argv0 string) {
@@ -122,55 +120,9 @@ func (g *gola) loadConfig(argv0 string) {
 		log.Fatalf("could not read '%v'", name)
 	}
 	// parse config
-	v := map[string]interface{}{}
-	err = json.Unmarshal(buf, &v)
+	err = json.Unmarshal(buf, &g.config)
 	if err != nil {
 		log.Fatalf("could not unmarshal '%v': %v", name, err)
-	}
-	// section: dir
-	ok := func() bool {
-		dir, ok := v["dir"].([]interface{})
-		if !ok {
-			return false
-		}
-		g.dir = make([]string, len(dir))
-		for i, v := range dir {
-			x, ok := v.(string)
-			if !ok {
-				return false
-			}
-			g.dir[i] = x
-		}
-		return true
-	}()
-	if !ok {
-		log.Fatal("'dir' option must be a string array")
-	}
-	// section: map
-	ok = func() bool {
-		map_, ok := v["map"].(map[string]interface{})
-		if !ok {
-			return false
-		}
-		g.map_ = map[string]map[string]string{}
-		for kw, obj := range map_ {
-			g.map_[kw] = map[string]string{}
-			nobj, ok := obj.(map[string]interface{})
-			if !ok {
-				return false
-			}
-			for k, v := range nobj {
-				x, ok := v.(string)
-				if !ok {
-					return false
-				}
-				g.map_[kw][k] = x
-			}
-		}
-		return true
-	}()
-	if !ok {
-		log.Fatal("'map' option should be a nested string value object")
 	}
 }
 
@@ -181,6 +133,11 @@ func (g *gola) isExe(name string) bool {
 		return g.isFile(name + ".exe")
 	}
 	return false
+}
+
+func (g *gola) isFile(name string) bool {
+	fi, err := os.Stat(name)
+	return err == nil && !fi.IsDir()
 }
 
 func (g *gola) exec(args []string) int {
@@ -197,11 +154,11 @@ func (g *gola) exec(args []string) int {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		if msg, ok := err.(*os.Waitmsg); ok {
-			if !msg.Exited() {
-				log.Fatal(msg)
+		if eerr, ok := err.(*exec.ExitError); ok {
+			if !eerr.Exited() {
+				log.Fatal(err)
 			}
-			return msg.ExitStatus()
+			return eerr.Sys().(syscall.WaitStatus).ExitStatus()
 		}
 		log.Fatal(err)
 	}
@@ -229,7 +186,7 @@ func (g *gola) loadScript() (kwd string, argv []string) {
 	}
 	// find interpreter from map
 	for {
-		if _, ok := g.map_[kwd]; ok {
+		if _, ok := g.config.Map[kwd]; ok {
 			break
 		}
 		x := filepath.Ext(kwd)
@@ -238,11 +195,11 @@ func (g *gola) loadScript() (kwd string, argv []string) {
 		}
 		kwd = kwd[:len(kwd)-len(x)]
 	}
-	if _, ok := g.map_[kwd]; !ok {
+	if _, ok := g.config.Map[kwd]; !ok {
 		return kwd, []string{}
-	} else if name, ok := g.map_[kwd][g.ext]; ok {
+	} else if name, ok := g.config.Map[kwd][g.ext]; ok {
 		argv[i] = name
-	} else if name, ok := g.map_[kwd][""]; ok {
+	} else if name, ok := g.config.Map[kwd][""]; ok {
 		argv[i] = name
 	} else {
 		return kwd, []string{}
@@ -296,13 +253,13 @@ func (g *gola) readShebang() (shebang string) {
 		if err != nil {
 			log.Fatalf("could not access '%v': %v", g.name, err)
 		}
-		zr, err := zip.NewReader(file, fi.Size)
+		zr, err := zip.NewReader(file, fi.Size())
 		if err != nil {
 			log.Fatalf("could not open zip file '%v': %v", g.name, err)
 		}
 		zf := func() *zip.File {
 			for _, file := range zr.File {
-				for _, n := range g.dir {
+				for _, n := range g.config.Dir {
 					if n == file.Name {
 						return file
 					}
