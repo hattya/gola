@@ -1,7 +1,7 @@
 //
 // gola.go - A script launcher written in Go
 //
-//   Copyright (c) 2011-2012 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2011-2014 Akinori Hattori <hattya@gmail.com>
 //
 //   Permission is hereby granted, free of charge, to any person
 //   obtaining a copy of this software and associated documentation files
@@ -45,8 +45,7 @@ func main() {
 		return
 	}
 	gola := newGola(os.Args[0], os.Args[1])
-	rv := gola.exec(os.Args[1:])
-	os.Exit(rv)
+	os.Exit(gola.exec(os.Args[1:]))
 }
 
 type gola struct {
@@ -59,51 +58,50 @@ type gola struct {
 }
 
 func newGola(argv0, name string) *gola {
-	g := new(gola)
-	g.name = name
-	g.ext = filepath.Ext(name)
+	g := &gola{
+		name: name,
+		ext:  filepath.Ext(name),
+	}
 	g.loadConfig(argv0)
 	// redirect to a found file
 	if !g.isFile(g.name) {
-		name := func() string {
-			for _, n := range g.config.Dir {
-				name := filepath.Join(g.name, n)
-				if g.isFile(name) {
-					return name
-				}
+		ok := false
+		for _, n := range g.config.Dir {
+			name := filepath.Join(g.name, n)
+			if g.isFile(name) {
+				g.name = name
+				ok = true
+				break
 			}
-			return ""
-		}()
-		if name == "" {
+		}
+		if !ok {
 			log.Fatalf("'%v' is not a file", g.name)
 		}
-		g.name = name
 	}
 	return g
 }
 
 func (g *gola) loadConfig(argv0 string) {
 	if !filepath.IsAbs(argv0) {
+		var abs string
+		var err error
 		if g.isExe(argv0) {
-			abs, err := filepath.Abs(filepath.Clean(argv0))
-			if err != nil {
-				log.Fatal("could not get current directory")
-			}
-			argv0 = abs
+			abs, err = filepath.Abs(argv0)
 		} else {
-			abs, err := exec.LookPath(argv0)
-			if err != nil {
-				log.Fatalf("could not find '%v' in $PATH", argv0)
-			}
-			argv0 = abs
+			abs, err = exec.LookPath(argv0)
 		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		argv0 = abs
 	}
 	name := argv0[:len(argv0)-len(filepath.Ext(argv0))] + ".json"
 	if !g.isFile(name) {
 		var home string
-		if runtime.GOOS == "windows" {
+		switch runtime.GOOS {
+		case "windows":
 			home = os.Getenv("APPDATA")
-		} else {
+		default:
 			home = os.Getenv("XDG_CONFIG_HOME")
 			if home == "" {
 				home = filepath.Join(os.Getenv("HOME"), ".config")
@@ -127,9 +125,10 @@ func (g *gola) loadConfig(argv0 string) {
 }
 
 func (g *gola) isExe(name string) bool {
-	if g.isFile(name) {
+	switch {
+	case g.isFile(name):
 		return true
-	} else if runtime.GOOS == "windows" {
+	case runtime.GOOS == "windows":
 		return g.isFile(name + ".exe")
 	}
 	return false
@@ -145,20 +144,17 @@ func (g *gola) exec(args []string) int {
 	if len(argv) == 0 {
 		log.Fatalf("could not find interpreter[%v] for '%v'", kwd, g.name)
 	}
-	for _, v := range args {
-		argv = append(argv, v)
-	}
+	argv = append(argv, args...)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		if eerr, ok := err.(*exec.ExitError); ok {
-			if !eerr.Exited() {
+	if err := cmd.Run(); err != nil {
+		if e, ok := err.(*exec.ExitError); ok {
+			if !e.Exited() {
 				log.Fatal(err)
 			}
-			return eerr.Sys().(syscall.WaitStatus).ExitStatus()
+			return e.Sys().(syscall.WaitStatus).ExitStatus()
 		}
 		log.Fatal(err)
 	}
@@ -168,16 +164,16 @@ func (g *gola) exec(args []string) int {
 func (g *gola) loadScript() (kwd string, argv []string) {
 	argv = g.parseShebang()
 	if len(argv) == 0 {
-		return "", []string{}
+		return
 	}
+	kwd = filepath.Base(argv[0])
 	i := 0
-	kwd = filepath.Base(argv[i])
 	// skip env
 	if kwd == "env" || kwd == "env.exe" {
 		// skip args
 		for i++; i < len(argv) && strings.HasPrefix(argv[i], "-"); i++ {
 		}
-		if i > 0 && argv[i-1] == "-" {
+		if 0 < i && argv[i-1] == "-" {
 			// skip NAME=VALUE
 			for ; i < len(argv) && strings.Contains(argv[i], "="); i++ {
 			}
@@ -189,20 +185,20 @@ func (g *gola) loadScript() (kwd string, argv []string) {
 		if _, ok := g.config.Map[kwd]; ok {
 			break
 		}
-		x := filepath.Ext(kwd)
-		if x == "" {
+		ext := filepath.Ext(kwd)
+		if ext == "" {
 			break
 		}
-		kwd = kwd[:len(kwd)-len(x)]
+		kwd = kwd[:len(kwd)-len(ext)]
 	}
 	if _, ok := g.config.Map[kwd]; !ok {
-		return kwd, []string{}
+		return kwd, nil
 	} else if name, ok := g.config.Map[kwd][g.ext]; ok {
 		argv[i] = name
 	} else if name, ok := g.config.Map[kwd][""]; ok {
 		argv[i] = name
 	} else {
-		return kwd, []string{}
+		return kwd, nil
 	}
 	return kwd, argv[i:]
 }
@@ -215,12 +211,8 @@ func (g *gola) parseShebang() (argv []string) {
 	}
 	shebang = strings.Replace(shebang, "\\", "/", -1)
 	// parse shebang
-	p := strings.Split(strings.TrimSpace(shebang[2:]), " ")
-	for _, s := range p {
-		if len(argv) == 1 &&
-			filepath.IsAbs(argv[0]) &&
-			!filepath.IsAbs(s) &&
-			strings.Contains(s, "/") {
+	for _, s := range strings.Fields(shebang[2:]) {
+		if len(argv) == 1 && filepath.IsAbs(argv[0]) && strings.Contains(s, "/") {
 			// join a path which contains spaces
 			argv[0] += " " + s
 		} else {
@@ -231,37 +223,37 @@ func (g *gola) parseShebang() (argv []string) {
 }
 
 func (g *gola) readShebang() (shebang string) {
-	file, err := os.Open(g.name)
+	f, err := os.Open(g.name)
 	if err != nil {
 		log.Fatalf("could not open '%v'", g.name)
 	}
-	defer file.Close()
+	defer f.Close()
 	// check signature
 	b := make([]byte, 2)
-	n, err := file.ReadAt(b, 0)
-	if n != len(b) {
-		log.Fatalf("could not read %v bytes from '%v'", len(b), g.name)
-	} else if err != nil {
-		log.Fatalf("could not read from '%v': %v", g.name, err)
+	switch n, err := f.ReadAt(b, 0); {
+	case n != len(b):
+		log.Fatalf("exec format error: '%v'", g.name)
+	case err != nil:
+		log.Fatal(err)
 	}
 	var br *bufio.Reader
-	if string(b) == "#!" {
-		// read fist line
-		br = bufio.NewReader(file)
-	} else if string(b) == "PK" {
-		fi, err := file.Stat()
+	switch string(b) {
+	case "#!":
+		br = bufio.NewReader(f)
+	case "PK":
+		size, err := f.Seek(0, 2)
 		if err != nil {
-			log.Fatalf("could not access '%v': %v", g.name, err)
+			log.Fatal(err)
 		}
-		zr, err := zip.NewReader(file, fi.Size())
+		zr, err := zip.NewReader(f, size)
 		if err != nil {
-			log.Fatalf("could not open zip file '%v': %v", g.name, err)
+			log.Fatal(err)
 		}
 		zf := func() *zip.File {
-			for _, file := range zr.File {
+			for _, zf := range zr.File {
 				for _, n := range g.config.Dir {
-					if n == file.Name {
-						return file
+					if zf.Name == n {
+						return zf
 					}
 				}
 			}
@@ -276,14 +268,13 @@ func (g *gola) readShebang() (shebang string) {
 		}
 		defer rc.Close()
 		br = bufio.NewReader(rc)
-	} else {
+	default:
 		return
 	}
-	bytes, isPrefix, err := br.ReadLine()
-	if isPrefix {
-		log.Fatalf("too long line: '%v'", g.name)
-	} else if err != nil {
-		log.Fatalf("could not read from '%v': %v", g.name, err)
+	// read fist line
+	line, err := br.ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
 	}
-	return string(bytes)
+	return line
 }
