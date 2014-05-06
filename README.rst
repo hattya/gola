@@ -1,21 +1,26 @@
-=====================================
-gola: A script launcher written in Go
-=====================================
+gola
+====
+
+A script launcher written in Go_
+
+.. _Go: http://golang.org/
+
 
 Install
 -------
 
-* Go version 1 -> http://golang.org/
-* gola::
+.. code:: console
 
-    $ go get -u github.com/hattya/gola
+   $ go get -u github.com/hattya/gola
 
-Usgae
+
+Usage
 -----
 
-::
+.. code:: console
 
-    $ gola [PATH] [OPTION]...
+   $ gola [PATH] [OPTION]...
+
 
 Configuration
 -------------
@@ -28,6 +33,7 @@ dir
 
 map
     Described in the `Example configuration`_.
+
 
 Search order for configuration files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -43,10 +49,11 @@ on Linux
 2. $XDG_CONFIG_HOME/gola/settings.json
 3. ~/.config/gola/settings.json
 
+
 Example configuration
 ~~~~~~~~~~~~~~~~~~~~~
 
-::
+.. code:: javascript
 
    {
        "dir": [
@@ -56,7 +63,7 @@ Example configuration
        ],
 
        "map": {
-           // This matches follwing cases:
+           // This matches following cases:
            //   - #!/usr/bin/env python
            //   - #!/usr/bin/python
            //   - #!C:\Python27\python.exe
@@ -69,16 +76,16 @@ Example configuration
                "":     "C:\\Python27\\python.exe"
            },
 
-           // This matches follwing cases:
-           //   - #!/usr/bin/env python3.2
+           // This matches following cases:
+           //   - #!/usr/bin/env python3.4
            //   - #!/usr/bin/env python3
-           //   - #!/usr/bin/python3.2
+           //   - #!/usr/bin/python3.4
            //   - #!/usr/bin/python3
-           //   - #!python3.2.exe
+           //   - #!python3.4.exe
            //   - #!python3.exe
            "python3": {
-               ".pyw": "C:\\Python32\\pythonw.exe"
-               "":     "C:\\Python32\\python.exe"
+               ".pyw": "C:\\Python34\\pythonw.exe"
+               "":     "C:\\Python34\\python.exe"
            }
        }
    }
