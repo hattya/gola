@@ -12,6 +12,8 @@ import (
 	"archive/zip"
 	"bufio"
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -26,8 +28,8 @@ func main() {
 	if len(os.Args) < 2 {
 		return
 	}
-	gola := newGola(os.Args[0], os.Args[1])
-	os.Exit(gola.exec(os.Args[1:]))
+	g := newGola(os.Args[0], os.Args[1])
+	os.Exit(g.exec(os.Args[1:]))
 }
 
 type gola struct {
@@ -122,8 +124,11 @@ func (g *gola) isFile(name string) bool {
 }
 
 func (g *gola) exec(args []string) int {
-	kwd, argv := g.loadScript()
-	if len(argv) == 0 {
+	kwd, argv, err := g.loadScript()
+	switch {
+	case err != nil:
+		log.Fatal(err)
+	case len(argv) == 0:
 		log.Fatalf("could not find interpreter[%v] for '%v'", kwd, g.name)
 	}
 	argv = append(argv, args...)
@@ -143,22 +148,27 @@ func (g *gola) exec(args []string) int {
 	return 0
 }
 
-func (g *gola) loadScript() (kwd string, argv []string) {
-	argv = g.parseShebang()
-	if len(argv) == 0 {
+func (g *gola) loadScript() (kwd string, argv []string, err error) {
+	argv, err = g.parseShebang()
+	if err != nil || len(argv) == 0 {
 		return
 	}
 	kwd = filepath.Base(argv[0])
 	i := 0
 	// skip env
 	if kwd == "env" || kwd == "env.exe" {
+		i++
 		// skip args
-		for i++; i < len(argv) && strings.HasPrefix(argv[i], "-"); i++ {
-		}
-		if 0 < i && argv[i-1] == "-" {
-			// skip NAME=VALUE
-			for ; i < len(argv) && strings.Contains(argv[i], "="); i++ {
+		for i < len(argv) && strings.HasPrefix(argv[i], "-") {
+			if argv[i] == "-u" {
+				i += 2
+			} else {
+				i++
 			}
+		}
+		// skip NAME=VALUE
+		for i < len(argv) && strings.Contains(argv[i], "=") {
+			i++
 		}
 		kwd = filepath.Base(argv[i])
 	}
@@ -173,27 +183,26 @@ func (g *gola) loadScript() (kwd string, argv []string) {
 		}
 		kwd = kwd[:len(kwd)-len(ext)]
 	}
-	if _, ok := g.config.Map[kwd]; !ok {
-		return kwd, nil
-	} else if name, ok := g.config.Map[kwd][g.ext]; ok {
+	if name, ok := g.config.Map[kwd][g.ext]; ok {
 		argv[i] = name
 	} else if name, ok := g.config.Map[kwd][""]; ok {
 		argv[i] = name
 	} else {
-		return kwd, nil
-	}
-	return kwd, argv[i:]
-}
-
-func (g *gola) parseShebang() (argv []string) {
-	// read shebang
-	shebang := g.readShebang()
-	if shebang == "" || !strings.HasPrefix(shebang, "#!") {
+		argv = nil
 		return
 	}
-	shebang = strings.Replace(shebang, "\\", "/", -1)
+	argv = argv[i:]
+	return
+}
+
+func (g *gola) parseShebang() (argv []string, err error) {
+	// read shebang
+	shebang, err := g.readShebang()
+	if err != nil || !strings.HasPrefix(shebang, "#!") {
+		return
+	}
 	// parse shebang
-	for _, s := range strings.Fields(shebang[2:]) {
+	for _, s := range strings.Fields(strings.Replace(shebang[2:], "\\", "/", -1)) {
 		if len(argv) == 1 && filepath.IsAbs(argv[0]) && strings.Contains(s, "/") {
 			// join a path which contains spaces
 			argv[0] += " " + s
@@ -201,52 +210,51 @@ func (g *gola) parseShebang() (argv []string) {
 			argv = append(argv, s)
 		}
 	}
-	return argv
+	return
 }
 
-func (g *gola) readShebang() (shebang string) {
+func (g *gola) readShebang() (shebang string, err error) {
 	f, err := os.Open(g.name)
 	if err != nil {
-		log.Fatalf("could not open '%v'", g.name)
+		return
 	}
 	defer f.Close()
 	// check signature
 	b := make([]byte, 2)
-	switch n, err := f.ReadAt(b, 0); {
-	case n != len(b):
-		log.Fatalf("exec format error: '%v'", g.name)
-	case err != nil:
-		log.Fatal(err)
+	if _, err = f.ReadAt(b, 0); err != nil {
+		err = fmt.Errorf("exec format error: '%v'", g.name)
+		return
 	}
 	var br *bufio.Reader
 	switch string(b) {
 	case "#!":
 		br = bufio.NewReader(f)
 	case "PK":
-		size, err := f.Seek(0, 2)
+		var size int64
+		size, err = f.Seek(0, io.SeekEnd)
 		if err != nil {
-			log.Fatal(err)
-		}
-		zr, err := zip.NewReader(f, size)
-		if err != nil {
-			log.Fatal(err)
-		}
-		zf := func() *zip.File {
-			for _, zf := range zr.File {
-				for _, n := range g.config.Dir {
-					if zf.Name == n {
-						return zf
-					}
-				}
-			}
-			return nil
-		}()
-		if zf == nil {
 			return
 		}
-		rc, err := zf.Open()
+		var zr *zip.Reader
+		zr, err = zip.NewReader(f, size)
 		if err != nil {
-			log.Fatalf("could not open '%v' in '%v'", zf.Name, g.name)
+			return
+		}
+		var zf *zip.File
+		for _, zf = range zr.File {
+			for _, n := range g.config.Dir {
+				if zf.Name == n {
+					goto Found
+				}
+			}
+		}
+		return
+	Found:
+		var rc io.ReadCloser
+		rc, err = zf.Open()
+		if err != nil {
+			err = fmt.Errorf("could not open '%v' in '%v': %v", zf.Name, g.name, err)
+			return
 		}
 		defer rc.Close()
 		br = bufio.NewReader(rc)
@@ -254,9 +262,8 @@ func (g *gola) readShebang() (shebang string) {
 		return
 	}
 	// read fist line
-	line, err := br.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
+	if shebang, err = br.ReadString('\n'); err == io.EOF {
+		err = nil
 	}
-	return line
+	return
 }
