@@ -1,4 +1,7 @@
 *.exe
+*.html
 *.json
+*.out
 *.sw?
+*.test
 gola
