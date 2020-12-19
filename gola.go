@@ -15,21 +15,46 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 )
+
+// for testing
+var configDir func() (string, error)
 
 func main() {
 	if len(os.Args) < 2 {
 		return
 	}
-	g := newGola(os.Args[0], os.Args[1])
-	os.Exit(g.exec(os.Args[1:]))
+	g, err := newGola(os.Args[0], os.Args[1])
+	if err != nil {
+		exit(err)
+	}
+	exit(g.exec(os.Args[1:]))
+}
+
+func init() {
+	configDir = func() (dir string, err error) {
+		dir, err = os.UserConfigDir()
+		if err == nil {
+			dir = filepath.Join(dir, "gola")
+		}
+		return
+	}
+}
+
+func exit(err error) {
+	if err != nil {
+		if e, ok := err.(*exec.ExitError); ok && e.Exited() {
+			os.Exit(e.ExitCode())
+		}
+		fmt.Fprintln(os.Stderr, "gola:", err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 type gola struct {
@@ -41,12 +66,14 @@ type gola struct {
 	}
 }
 
-func newGola(argv0, name string) *gola {
+func newGola(argv0, name string) (*gola, error) {
 	g := &gola{
 		name: name,
 		ext:  filepath.Ext(name),
 	}
-	g.loadConfig(argv0)
+	if err := g.loadConfig(argv0); err != nil {
+		return nil, err
+	}
 	// redirect to a found file
 	if !g.isFile(g.name) {
 		ok := false
@@ -59,53 +86,46 @@ func newGola(argv0, name string) *gola {
 			}
 		}
 		if !ok {
-			log.Fatalf("'%v' is not a file", g.name)
+			return nil, fmt.Errorf("'%v' is not a file", g.name)
 		}
 	}
-	return g
+	return g, nil
 }
 
-func (g *gola) loadConfig(argv0 string) {
+func (g *gola) loadConfig(argv0 string) (err error) {
 	if !filepath.IsAbs(argv0) {
 		var abs string
-		var err error
 		if g.isExe(argv0) {
 			abs, err = filepath.Abs(argv0)
 		} else {
 			abs, err = exec.LookPath(argv0)
 		}
 		if err != nil {
-			log.Fatal(err)
+			return
 		}
 		argv0 = abs
 	}
 	name := argv0[:len(argv0)-len(filepath.Ext(argv0))] + ".json"
 	if !g.isFile(name) {
-		var home string
-		switch runtime.GOOS {
-		case "windows":
-			home = os.Getenv("APPDATA")
-		default:
-			home = os.Getenv("XDG_CONFIG_HOME")
-			if home == "" {
-				home = filepath.Join(os.Getenv("HOME"), ".config")
-			}
+		var dir string
+		dir, err = configDir()
+		if err != nil {
+			return
 		}
-		name = filepath.Join(home, "gola", "settings.json")
+		name = filepath.Join(dir, "gola", "settings.json")
 	}
-	// read config
-	if !g.isFile(name) {
-		return
+	if g.isFile(name) {
+		// read config
+		var b []byte
+		if b, err = ioutil.ReadFile(name); err != nil {
+			return
+		}
+		// parse config
+		if err = json.Unmarshal(b, &g.config); err != nil {
+			return
+		}
 	}
-	buf, err := ioutil.ReadFile(name)
-	if err != nil {
-		log.Fatalf("could not read '%v'", name)
-	}
-	// parse config
-	err = json.Unmarshal(buf, &g.config)
-	if err != nil {
-		log.Fatalf("could not unmarshal '%v': %v", name, err)
-	}
+	return
 }
 
 func (g *gola) isExe(name string) bool {
@@ -123,29 +143,20 @@ func (g *gola) isFile(name string) bool {
 	return err == nil && !fi.IsDir()
 }
 
-func (g *gola) exec(args []string) int {
+func (g *gola) exec(args []string) error {
 	kwd, argv, err := g.loadScript()
 	switch {
 	case err != nil:
-		log.Fatal(err)
+		return err
 	case len(argv) == 0:
-		log.Fatalf("could not find interpreter[%v] for '%v'", kwd, g.name)
+		return fmt.Errorf("could not find interpreter[%v] for '%v'", kwd, g.name)
 	}
 	argv = append(argv, args...)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		if e, ok := err.(*exec.ExitError); ok {
-			if !e.Exited() {
-				log.Fatal(err)
-			}
-			return e.Sys().(syscall.WaitStatus).ExitStatus()
-		}
-		log.Fatal(err)
-	}
-	return 0
+	return cmd.Run()
 }
 
 func (g *gola) loadScript() (kwd string, argv []string, err error) {
