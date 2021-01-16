@@ -1,7 +1,7 @@
 //
 // gola :: gola_test.go
 //
-//   Copyright (c) 2020 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2020-2021 Akinori Hattori <hattya@gmail.com>
 //
 //   SPDX-License-Identifier: MIT
 //
@@ -33,11 +33,11 @@ func TestNewGola(t *testing.T) {
 	case "windows":
 		exe += ".exe"
 	}
-	if err := ioutil.WriteFile(exe, []byte{}, 0777); err != nil {
+	if err := ioutil.WriteFile(exe, []byte{}, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	name := filepath.Join(dir, "a")
-	if err := os.Mkdir(name, 0777); err != nil {
+	if err := os.Mkdir(name, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	if err := file(filepath.Join(name, "__main__.py"), "#!/usr/bin/env python\n"); err != nil {
@@ -96,7 +96,7 @@ func TestLoadConfig(t *testing.T) {
 		t.Error("expected error")
 	}
 	// invalid config
-	if err := ioutil.WriteFile(argv0, []byte{}, 0777); err != nil {
+	if err := ioutil.WriteFile(argv0, []byte{}, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	if err := file(json, ""); err != nil {
@@ -346,11 +346,11 @@ func tempDir() (string, error) {
 }
 
 func file(name, data string) error {
-	return ioutil.WriteFile(name, []byte(data), 0666)
+	return ioutil.WriteFile(name, []byte(data), 0o666)
 }
 
 func touch(name string) error {
-	return ioutil.WriteFile(name, []byte{}, 0666)
+	return ioutil.WriteFile(name, []byte{}, 0o666)
 }
 
 func pushd(path string) (func() error, error) {
