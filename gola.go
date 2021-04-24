@@ -1,7 +1,7 @@
 //
 // gola.go - A script launcher written in Go
 //
-//   Copyright (c) 2011-2020 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2011-2021 Akinori Hattori <hattya@gmail.com>
 //
 //   SPDX-License-Identifier: MIT
 //
@@ -22,9 +22,6 @@ import (
 	"strings"
 )
 
-// for testing
-var configDir func() (string, error)
-
 func main() {
 	if len(os.Args) < 2 {
 		return
@@ -35,6 +32,9 @@ func main() {
 	}
 	exit(g.exec(os.Args[1:]))
 }
+
+// for testing
+var configDir func() (string, error)
 
 func init() {
 	configDir = func() (dir string, err error) {
@@ -76,10 +76,9 @@ func newGola(argv0, name string) (*gola, error) {
 	}
 	// redirect to a found file
 	if !g.isFile(g.name) {
-		ok := false
+		var ok bool
 		for _, n := range g.config.Dir {
-			name := filepath.Join(g.name, n)
-			if g.isFile(name) {
+			if name := filepath.Join(g.name, n); g.isFile(name) {
 				g.name = name
 				ok = true
 				break
@@ -108,8 +107,7 @@ func (g *gola) loadConfig(argv0 string) (err error) {
 	name := argv0[:len(argv0)-len(filepath.Ext(argv0))] + ".json"
 	if !g.isFile(name) {
 		var dir string
-		dir, err = configDir()
-		if err != nil {
+		if dir, err = configDir(); err != nil {
 			return
 		}
 		name = filepath.Join(dir, "gola", "settings.json")
@@ -242,13 +240,11 @@ func (g *gola) readShebang() (shebang string, err error) {
 		br = bufio.NewReader(f)
 	case "PK":
 		var size int64
-		size, err = f.Seek(0, io.SeekEnd)
-		if err != nil {
+		if size, err = f.Seek(0, io.SeekEnd); err != nil {
 			return
 		}
 		var zr *zip.Reader
-		zr, err = zip.NewReader(f, size)
-		if err != nil {
+		if zr, err = zip.NewReader(f, size); err != nil {
 			return
 		}
 		var zf *zip.File
@@ -262,8 +258,7 @@ func (g *gola) readShebang() (shebang string, err error) {
 		return
 	Found:
 		var rc io.ReadCloser
-		rc, err = zf.Open()
-		if err != nil {
+		if rc, err = zf.Open(); err != nil {
 			err = fmt.Errorf("could not open '%v' in '%v': %v", zf.Name, g.name, err)
 			return
 		}
