@@ -20,12 +20,7 @@ import (
 )
 
 func TestNewGola(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	argv0 := filepath.Join(dir, "gola")
 	json := filepath.Join(dir, "gola.json")
 	exe := argv0
@@ -69,15 +64,9 @@ func TestNewGola(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	path := os.Getenv("PATH")
-	defer os.Setenv("PATH", path)
-	os.Setenv("PATH", dir+string(os.PathListSeparator)+path)
+	dir := t.TempDir()
+	defer os.Setenv("PATH", os.Getenv("PATH"))
+	os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	var argv0 string
 	switch runtime.GOOS {
@@ -147,12 +136,6 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestExec(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
 	stdout := os.Stdout
 	defer func() { os.Stdout = stdout }()
 	os.Stdout = nil
@@ -162,7 +145,7 @@ func TestExec(t *testing.T) {
 		t.Error("expected error")
 	}
 
-	g.name = filepath.Join(dir, "a.go")
+	g.name = filepath.Join(t.TempDir(), "a.go")
 	g.ext = filepath.Ext(g.name)
 	if err := file(g.name, "#!/usr/bin/env go\n"); err != nil {
 		t.Fatal(err)
@@ -182,18 +165,12 @@ func TestExec(t *testing.T) {
 }
 
 func TestLoadScript(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
 	g := &gola{}
 	if _, _, err := g.loadScript(); err == nil {
 		t.Error("expected error")
 	}
 
-	g.name = filepath.Join(dir, "a.py")
+	g.name = filepath.Join(t.TempDir(), "a.py")
 	g.ext = filepath.Ext(g.name)
 	for _, data := range []string{
 		"#!/usr/bin/env -u FOO BAR=BAZ python\n",
@@ -242,12 +219,6 @@ func TestLoadScript(t *testing.T) {
 }
 
 func TestParseShebang(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
 	g := &gola{}
 	if _, err := g.parseShebang(); err == nil {
 		t.Error("expected error")
@@ -260,7 +231,7 @@ func TestParseShebang(t *testing.T) {
 	default:
 		C = "/c"
 	}
-	g.name = filepath.Join(dir, "a.py")
+	g.name = filepath.Join(t.TempDir(), "a.py")
 	for _, tt := range []struct {
 		shebang string
 		argv    []string
@@ -280,12 +251,7 @@ func TestParseShebang(t *testing.T) {
 }
 
 func TestReadShebang(t *testing.T) {
-	dir, err := tempDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	g := &gola{}
 	if _, err := g.readShebang(); err == nil {
 		t.Error("expected error")
@@ -339,10 +305,6 @@ func TestReadShebang(t *testing.T) {
 	} else if g, e := shebang, "#!/usr/bin/env python\n"; g != e {
 		t.Errorf("expected %q, got %q", e, g)
 	}
-}
-
-func tempDir() (string, error) {
-	return ioutil.TempDir("", "gola")
 }
 
 func file(name, data string) error {
