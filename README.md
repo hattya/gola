@@ -1,6 +1,6 @@
 # gola
 
-A script launcher written in [Go](https://golang.org/).
+A script launcher written in [Go](https://go.dev/).
 
 [![GitHub Actions](https://github.com/hattya/gola/actions/workflows/ci.yml/badge.svg)](https://github.com/hattya/gola/actions/workflows/ci.yml)
 [![Semaphore](https://semaphoreci.com/api/v1/hattya/gola/branches/master/badge.svg)](https://semaphoreci.com/hattya/gola)
