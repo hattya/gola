@@ -1,7 +1,7 @@
 //
 // gola.go - A script launcher written in Go
 //
-//   Copyright (c) 2011-2021 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2011-2022 Akinori Hattori <hattya@gmail.com>
 //
 //   SPDX-License-Identifier: MIT
 //
@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,7 +114,7 @@ func (g *gola) loadConfig(argv0 string) (err error) {
 	if g.isFile(name) {
 		// read config
 		var b []byte
-		if b, err = ioutil.ReadFile(name); err != nil {
+		if b, err = os.ReadFile(name); err != nil {
 			return
 		}
 		// parse config

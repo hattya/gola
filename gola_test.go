@@ -1,7 +1,7 @@
 //
 // gola :: gola_test.go
 //
-//   Copyright (c) 2020-2021 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2020-2022 Akinori Hattori <hattya@gmail.com>
 //
 //   SPDX-License-Identifier: MIT
 //
@@ -11,7 +11,6 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -28,7 +27,7 @@ func TestNewGola(t *testing.T) {
 	case "windows":
 		exe += ".exe"
 	}
-	if err := ioutil.WriteFile(exe, []byte{}, 0o777); err != nil {
+	if err := os.WriteFile(exe, []byte{}, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	name := filepath.Join(dir, "a")
@@ -85,7 +84,7 @@ func TestLoadConfig(t *testing.T) {
 		t.Error("expected error")
 	}
 	// invalid config
-	if err := ioutil.WriteFile(argv0, []byte{}, 0o777); err != nil {
+	if err := os.WriteFile(argv0, []byte{}, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	if err := file(json, ""); err != nil {
@@ -308,11 +307,11 @@ func TestReadShebang(t *testing.T) {
 }
 
 func file(name, data string) error {
-	return ioutil.WriteFile(name, []byte(data), 0o666)
+	return os.WriteFile(name, []byte(data), 0o666)
 }
 
 func touch(name string) error {
-	return ioutil.WriteFile(name, []byte{}, 0o666)
+	return os.WriteFile(name, []byte{}, 0o666)
 }
 
 func pushd(path string) (func() error, error) {

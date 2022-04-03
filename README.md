@@ -11,7 +11,7 @@ A script launcher written in [Go](https://go.dev/).
 ## Installation
 
 ```console
-$ go get -u github.com/hattya/gola
+$ go install github.com/hattya/gola@latest
 ```
 
 
