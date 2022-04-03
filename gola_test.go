@@ -76,7 +76,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 	json := filepath.Join(dir, "gola.json")
 
-	g := &gola{}
+	g := new(gola)
 	if err := g.loadConfig(argv0); err != nil {
 		t.Error(err)
 	}
@@ -139,7 +139,7 @@ func TestExec(t *testing.T) {
 	defer func() { os.Stdout = stdout }()
 	os.Stdout = nil
 
-	g := &gola{}
+	g := new(gola)
 	if err := g.exec([]string{}); err == nil {
 		t.Error("expected error")
 	}
@@ -164,7 +164,7 @@ func TestExec(t *testing.T) {
 }
 
 func TestLoadScript(t *testing.T) {
-	g := &gola{}
+	g := new(gola)
 	if _, _, err := g.loadScript(); err == nil {
 		t.Error("expected error")
 	}
@@ -218,7 +218,7 @@ func TestLoadScript(t *testing.T) {
 }
 
 func TestParseShebang(t *testing.T) {
-	g := &gola{}
+	g := new(gola)
 	if _, err := g.parseShebang(); err == nil {
 		t.Error("expected error")
 	}
@@ -251,7 +251,7 @@ func TestParseShebang(t *testing.T) {
 
 func TestReadShebang(t *testing.T) {
 	dir := t.TempDir()
-	g := &gola{}
+	g := new(gola)
 	if _, err := g.readShebang(); err == nil {
 		t.Error("expected error")
 	}
