@@ -64,8 +64,7 @@ func TestNewGola(t *testing.T) {
 
 func TestLoadConfig(t *testing.T) {
 	dir := t.TempDir()
-	defer os.Setenv("PATH", os.Getenv("PATH"))
-	os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	var argv0 string
 	switch runtime.GOOS {
