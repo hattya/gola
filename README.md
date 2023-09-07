@@ -3,7 +3,6 @@
 A script launcher written in [Go](https://go.dev/).
 
 [![GitHub Actions](https://github.com/hattya/gola/actions/workflows/ci.yml/badge.svg)](https://github.com/hattya/gola/actions/workflows/ci.yml)
-[![Semaphore](https://semaphoreci.com/api/v1/hattya/gola/branches/master/badge.svg)](https://semaphoreci.com/hattya/gola)
 [![Appveyor](https://ci.appveyor.com/api/projects/status/lchmkujc6phas1l5/branch/master?svg=true)](https://ci.appveyor.com/project/hattya/gola)
 [![Codecov](https://codecov.io/gh/hattya/gola/branch/master/graph/badge.svg)](https://codecov.io/gh/hattya/gola)
 
