@@ -1,7 +1,7 @@
 //
 // gola.go - A script launcher written in Go
 //
-//   Copyright (c) 2011-2022 Akinori Hattori <hattya@gmail.com>
+//   Copyright (c) 2011-2026 Akinori Hattori <hattya@gmail.com>
 //
 //   SPDX-License-Identifier: MIT
 //
@@ -210,7 +210,7 @@ func (g *gola) parseShebang() (argv []string, err error) {
 		return
 	}
 	// parse shebang
-	for _, s := range strings.Fields(strings.Replace(shebang[2:], "\\", "/", -1)) {
+	for _, s := range strings.Fields(strings.ReplaceAll(shebang[2:], "\\", "/")) {
 		if len(argv) == 1 && filepath.IsAbs(argv[0]) && strings.Contains(s, "/") {
 			// join a path which contains spaces
 			argv[0] += " " + s
